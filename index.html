@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>バド・マッチメーカー v5.7</title>
+<style>
+    /* 全体のレイアウト調整：余白を極力減らす */
+    body { font-family: sans-serif; padding: 10px; max-width: 600px; margin: 0 auto; background-color: #f0f4f8; }
+    
+    /* タイトルを小さく、控えめに */
+    h1 { font-size: 16px; color: #333; margin: 0 0 10px 0; display: inline-block; }
+    
+    /* パネルの余白を詰める */
+    .control-panel { background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 10px; }
+    
+    input[type="number"] { padding: 8px; font-size: 16px; width: 50px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+    #removeNum, #courtCountGame, #courtCountSetup { width: 2.5em; padding: 8px 4px; }
+    
+    /* ボタン共通スタイル（除外ボタンなどはこれが適用される） */
+    /* font-size: 14px, padding: 8px 12px -> 高さ約30~35px */
+    button { font-size: 14px; border: none; border-radius: 5px; cursor: pointer; padding: 8px 12px; }
+    
+    /* メインのアクションボタン（大きく） */
+    .main-btn { background-color: #007bff; color: white; width: 100%; font-size: 18px; padding: 12px; font-weight: bold; margin-bottom: 5px; }
+    .main-btn:hover { background-color: #0056b3; }
+    .main-btn:active { transform: translateY(1px); }
+
+    .reset-btn { background-color: #6c757d; color: white; font-size: 12px; padding: 5px 10px; float: right;}
+
+    /* 履歴エリア（黒い部分） */
+    #output { 
+        background: #222; 
+        color: #fff; 
+        padding: 10px; 
+        border-radius: 5px; 
+        font-family: monospace; 
+        min-height: 250px; /* 少し高さを確保 */
+        height: calc(100vh - 250px); /* 画面下いっぱいまで使う計算（概算） */
+        overflow-y: auto; 
+        max-height: 600px; 
+        font-size: 120%; /* 少し文字サイズ調整（HTML構成に合わせて） */
+        line-height: 1.4; 
+    }
+    .hidden { display: none; }
+    
+    /* 折りたたみエリア（details/summary） */
+    details {
+        margin-top: 5px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        background-color: #fafafa;
+    }
+    summary {
+        padding: 8px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        list-style: none; /* 三角アイコンを消す（一部ブラウザ用） */
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: #e9ecef;
+        border-radius: 5px;
+    }
+    /* カスタムの開閉アイコン */
+    summary::after { content: "+"; font-size: 18px; font-weight: bold; }
+    details[open] summary::after { content: "-"; }
+    
+    /* 設定の中身 */
+    .details-content { padding: 10px; }
+
+    /* 管理行のレイアウト */
+    .manage-row { display: flex; align-items: center; margin-bottom: 8px; gap: 5px; flex-wrap: wrap; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
+    .manage-row:last-child { border-bottom: none; margin-bottom: 0; }
+    .manage-label { font-weight: bold; font-size: 12px; color: #555; }
+    .manage-group { display: flex; align-items: center; gap: 2px; }
+    .manage-group + .manage-group { border-left: 2px solid #999; padding-left: 10px; margin-left: 5px; }
+    
+    .remove-btn { background-color: #ffc107; color: #000; } 
+    .add-btn { background-color: #28a745; color: white; }
+
+    .player-list { font-size: 12px; color: #555; margin-top: 5px; background: #fff; padding: 5px; border: 1px solid #eee; }
+
+    /* 除外リスト */
+    #removedListArea {
+        margin-top: 5px;
+        padding: 5px;
+        background-color: #fff3cd;
+        border: 1px solid #ffeeba;
+        border-radius: 4px;
+        display: none; 
+    }
+    .removed-item {
+        display: flex;
+        align-items: center;
+        gap: 8px; /* ボタン間の隙間を少し広げる */
+        margin-top: 5px; /* 行間を広げる */
+        font-size: 12px;
+        border-bottom: 1px dotted #ccc;
+        padding-bottom: 5px; /* 下の余白も広げる */
+    }
+    
+    /* ▼▼▼ ボタンサイズ調整箇所 ▼▼▼ 
+       以前は padding: 2px 6px; font-size: 11px; でした。
+       少し大きくしてタップしやすくします。
+    */
+    .restore-btn {
+        background-color: #17a2b8;
+        color: white;
+        padding: 8px 12px; /* 除外ボタンと同じサイズ */
+        font-size: 14px;   /* 除外ボタンと同じサイズ */
+    }
+    .delete-btn {
+        background-color: #dc3545;
+        color: white;
+        padding: 8px 12px; /* 除外ボタンと同じサイズ */
+        font-size: 14px;   /* 除外ボタンと同じサイズ */
+        margin-left: 4px;  /* 復帰ボタンとの隙間 */
+    }
+
+    .status-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
+        font-size: 14px;
+        font-weight: bold;
+    }
+
+    /* ログ内のスタイル */
+    .log-entry {
+        border-bottom: 1px solid #444;
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+    }
+    /* ヘッダーをFlexboxにして左右配置（日時と完了チェックボックス） */
+    .log-header {
+        font-size: 14px;
+        color: #aaa;
+        margin-bottom: 5px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    /* 完了チェックボックス周りのスタイル */
+    .log-header label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        color: #fff; /* 背景が黒なので白文字 */
+    }
+    .round-check {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+    }
+
+    .match-row {
+        padding: 8px 10px;
+        margin-bottom: 4px;
+        border-radius: 4px;
+        color: #000; /* 背景色がついたときは黒文字 */
+        font-weight: bold;
+        font-size: 18px; /* 試合部分は大きく */
+    }
+    .log-footer {
+        font-size: 14px;
+        color: #ddd;
+        margin-top: 5px;
+    }
+    .log-alert {
+        color: #ff5555;
+        font-weight: bold;
+        margin-top: 5px;
+    }
+</style>
+</head>
+<body>
+
+<div style="display:flex; justify-content:space-between; align-items:center;">
+    <h1>🏸 マッチメーカー</h1>
+    <button onclick="resetApp()" class="reset-btn">リセット</button>
+</div>
+
+<!-- 初期設定画面（ここはそのまま） -->
+<div id="setupArea" class="control-panel">
+    <p style="margin:5px 0;">開始設定</p>
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+        <label>人数 <input type="number" id="playerCount" value="6" min="4"></label>
+        <label>コート <input type="number" id="courtCountSetup" value="2" min="1"></label>
+    </div>
+    <button onclick="startGame()" class="main-btn" style="font-size:16px;">スタート</button>
+</div>
+
+<!-- メインゲーム画面（コンパクト化） -->
+<div id="gameArea" class="control-panel hidden">
+    <!-- 最上部：ステータスとメインボタン -->
+    <div class="status-bar">
+        <span id="roundDisplay">第1回 (コート:2)</span>
+        <span style="font-size:12px; font-weight:normal; color:#666;">待機等は自動計算</span>
+    </div>
+
+    <!-- ここを押すだけでOK -->
+    <button onclick="generateMatch()" class="main-btn">次（組み合わせ作成）</button>
+
+    <!-- 頻繁に使わない機能は折りたたむ -->
+    <details id="settingsDetails">
+        <summary>⚙️ 設定・メンバー管理</summary>
+        <div class="details-content">
+            
+            <!-- コート数変更 -->
+            <div class="manage-row">
+                <span class="manage-label">コート</span>
+                <input type="number" id="courtCountGame" value="2" min="1" onchange="updateCourtSetting()"> 面
+                <span style="font-size:11px; color:#666;">(次回反映)</span>
+            </div>
+
+            <!-- 追加・休憩 -->
+            <div class="manage-row">
+                <div class="manage-group">
+                    <span class="manage-label">追加</span>
+                    <button onclick="addPlayerAuto()" class="add-btn">＋1名</button>
+                </div>
+                <div class="manage-group">
+                    <span class="manage-label">休憩</span>
+                    <input type="number" id="removeNum" placeholder="No.">
+                    <button onclick="removePlayer()" class="remove-btn">除外</button>
+                </div>
+            </div>
+
+            <div class="player-list">参加中: <span id="currentList" style="font-weight:bold;"></span></div>
+
+            <!-- 除外中（休憩中）リスト -->
+            <div id="removedListArea">
+                <p style="font-size:11px; margin:0; font-weight:bold; color:#856404;">休憩中リスト</p>
+                <div id="removedListContent"></div>
+            </div>
+        </div>
+    </details>
+</div>
+
+<div id="output">ここに履歴が表示されます...</div>
+
+<script>
+    // 起動確認
+    window.onload = function() { console.log("アプリ読み込み完了 v5.7 ButtonResized"); };
+
+    let totalPlayers = 0;
+    let players = [];
+    let removedPlayers = []; 
+    let historyPairs = [];
+    let restHistory = [];
+    let playerRestCounts = {}; 
+    let matchCount = 0;
+    let maxPlayerNumber = 0; 
+    let currentCourtCount = 2; 
+
+    // コートごとの背景色定義
+    const courtColors = [
+        '#FFC0CB', // A: 薄いピンク (Pink)
+        '#FFFACD', // B: 薄い黄色 (LemonChiffon)
+        '#E0FFFF', // C: 薄い青 (LightCyan)
+        '#98FB98', // D: 薄い緑 (PaleGreen)
+        '#E6E6FA', // E: 薄い紫 (Lavender)
+        '#FFDAB9'  // F: 薄いオレンジ (PeachPuff)
+    ];
+
+    function startGame() {
+        const pCountInput = document.getElementById('playerCount').value;
+        const cCountInput = document.getElementById('courtCountSetup').value;
+        
+        const count = parseInt(pCountInput);
+        const courts = parseInt(cCountInput);
+        
+        if (isNaN(count) || count < 4) { alert("人数は4人以上で"); return; }
+        if (isNaN(courts) || courts < 1) { alert("コート数は1面以上で"); return; }
+        
+        totalPlayers = count;
+        maxPlayerNumber = count; 
+        currentCourtCount = courts;
+
+        document.getElementById('courtCountGame').value = currentCourtCount;
+
+        players = [];
+        removedPlayers = [];
+        playerRestCounts = {}; 
+        for(let i=1; i<=totalPlayers; i++) {
+            players.push(i);
+            playerRestCounts[i] = 0;
+        }
+
+        historyPairs = [];
+        restHistory = [];
+        matchCount = 0;
+
+        document.getElementById('setupArea').style.display = 'none';
+        document.getElementById('gameArea').style.display = 'block';
+        document.getElementById('gameArea').classList.remove('hidden');
+        
+        // 初回ログ
+        document.getElementById('output').innerHTML = `<div class="log-header">--- 開始: ${totalPlayers}名 / コート${currentCourtCount}面 ---</div>`;
+        updateStatusDisplay();
+        updatePlayerListDisplay();
+    }
+
+    function updateCourtSetting() {
+        const val = parseInt(document.getElementById('courtCountGame').value);
+        if(!isNaN(val) && val > 0) {
+            currentCourtCount = val;
+            updateStatusDisplay();
+        }
+    }
+
+    function updateStatusDisplay() {
+        document.getElementById('roundDisplay').textContent = `第${matchCount}回 (コート:${currentCourtCount})`;
+    }
+
+    // HTMLとしてログを追加する関数
+    function prependHtml(htmlString) {
+        const outputDiv = document.getElementById('output');
+        outputDiv.insertAdjacentHTML('afterbegin', htmlString);
+        outputDiv.scrollTop = 0; 
+    }
+
+    // 単純なテキストログ用
+    function prependLog(text) {
+        const html = `<div class="log-entry" style="border:none; margin-bottom:5px; font-size:14px; color:#aaa;">${text.replace(/\n/g, '<br>')}</div>`;
+        prependHtml(html);
+    }
+
+    function addPlayerAuto() {
+        maxPlayerNumber++; 
+        const newPlayerNum = maxPlayerNumber;
+
+        let minRest = 0;
+        if (players.length > 0) {
+            minRest = Math.min(...players.map(p => playerRestCounts[p] || 0));
+        }
+        playerRestCounts[newPlayerNum] = minRest;
+        players.push(newPlayerNum);
+        updatePlayerListDisplay();
+        
+        const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+        prependLog(`[${timeStr}] 参加：${newPlayerNum}番`);
+    }
+
+    function removePlayer() {
+        const numInput = document.getElementById('removeNum');
+        const numToRemove = parseInt(numInput.value);
+        if (isNaN(numToRemove)) return;
+
+        if (!players.includes(numToRemove)) {
+            alert("その番号は参加中にいません");
+            return;
+        }
+        if (players.length <= 4) {
+            alert("4人を下回るため除外できません");
+            return;
+        }
+
+        players = players.filter(p => p !== numToRemove);
+        removedPlayers.push(numToRemove);
+        removedPlayers.sort((a,b) => a-b);
+        updatePlayerListDisplay();
+        
+        const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+        prependLog(`[${timeStr}] 休憩へ：${numToRemove}番`);
+        numInput.value = '';
+    }
+
+    function restorePlayer(num) {
+        if (!removedPlayers.includes(num)) return;
+        removedPlayers = removedPlayers.filter(p => p !== num);
+        players.push(num);
+        players.sort((a,b) => a-b);
+
+        let minRest = 0;
+        if (players.length > 0) {
+            minRest = Math.min(...players.map(p => playerRestCounts[p] || 0));
+        }
+        playerRestCounts[num] = minRest;
+
+        updatePlayerListDisplay();
+        prependLog(`[通知] ${num}番が復帰しました`);
+    }
+
+    function deletePlayerPermanent(num) {
+        if (!confirm(`${num}番を完全に削除しますか？`)) return;
+        removedPlayers = removedPlayers.filter(p => p !== num);
+        updatePlayerListDisplay();
+        prependLog(`[通知] ${num}番を完全削除`);
+    }
+
+    function updatePlayerListDisplay() {
+        totalPlayers = players.length;
+        const listSpan = document.getElementById('currentList');
+        if(listSpan) listSpan.textContent = players.join(', ');
+
+        const removedArea = document.getElementById('removedListArea');
+        const removedContent = document.getElementById('removedListContent');
+        
+        if (removedPlayers.length > 0) {
+            removedArea.style.display = 'block';
+            removedContent.innerHTML = '';
+            removedPlayers.forEach(num => {
+                const div = document.createElement('div');
+                div.className = 'removed-item';
+                div.innerHTML = `
+                    <span><b>${num}番</b></span>
+                    <button onclick="restorePlayer(${num})" class="restore-btn">復帰</button>
+                    <button onclick="deletePlayerPermanent(${num})" class="delete-btn">削除</button>
+                `;
+                removedContent.appendChild(div);
+            });
+        } else {
+            removedArea.style.display = 'none';
+        }
+    }
+
+    function resetApp() {
+        if(confirm("最初に戻りますか？")) location.reload();
+    }
+
+    function generateMatch() {
+        updateCourtSetting();
+        matchCount++;
+        updateStatusDisplay();
+
+        let currentPlayers = [...players];
+        let waiting = [];
+        let maxPlayable = currentCourtCount * 4;
+        let numMatches = Math.min(currentCourtCount, Math.floor(currentPlayers.length / 4));
+        let numActive = numMatches * 4;
+        let numWaiting = currentPlayers.length - numActive;
+        
+        let candidates = shuffle([...currentPlayers]);
+        let lastRested = restHistory.length > 0 ? restHistory[restHistory.length - 1] : [];
+
+        candidates.sort((a, b) => {
+            let countA = playerRestCounts[a] || 0;
+            let countB = playerRestCounts[b] || 0;
+            let penaltyA = lastRested.includes(a) ? 1000 : 0;
+            let penaltyB = lastRested.includes(b) ? 1000 : 0;
+            return (countA + penaltyA) - (countB + penaltyB);
+        });
+
+        waiting = candidates.slice(0, numWaiting);
+        waiting.forEach(p => playerRestCounts[p] = (playerRestCounts[p] || 0) + 1);
+        
+        let activePlayers = currentPlayers.filter(p => !waiting.includes(p));
+        activePlayers = shuffle(activePlayers);
+
+        // ペア生成
+        let attempts = 0;
+        let success = false;
+        let bestPairs = [];
+
+        while(attempts < 100 && !success) {
+            let tempActive = shuffle([...activePlayers]);
+            let tempPairs = [];
+            let possible = true;
+            for (let i = 0; i < tempActive.length; i += 2) {
+                let p1 = tempActive[i];
+                let p2 = tempActive[i+1];
+                let pairId = [p1, p2].sort().join('-');
+                if (historyPairs.includes(pairId)) possible = false;
+                tempPairs.push([p1, p2]);
+            }
+            if (possible) {
+                bestPairs = tempPairs;
+                success = true;
+            } else if (bestPairs.length === 0) bestPairs = tempPairs;
+            attempts++;
+        }
+        
+        bestPairs.forEach(pair => historyPairs.push(pair.sort().join('-')));
+        
+        const maxPairs = (totalPlayers * (totalPlayers - 1)) / 2;
+        
+        // 全ペア一巡チェック：メッセージは出さず、内部リセットのみ行う
+        if (historyPairs.length >= maxPairs && totalPlayers > 0) {
+             historyPairs = [];
+        }
+
+        restHistory.push(waiting);
+
+        let matches = [];
+        for (let i = 0; i < bestPairs.length; i += 2) {
+            if (i + 1 < bestPairs.length) {
+                matches.push({ team1: bestPairs[i], team2: bestPairs[i+1] });
+            }
+        }
+
+        const now = new Date();
+        const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+        
+        // HTML文字列の構築
+        let entryHtml = `<div class="log-entry">`;
+        
+        // ヘッダーにチェックボックスを1つだけ配置
+        entryHtml += `
+            <div class="log-header">
+                <span>--- [${timeStr}] (${matchCount}回) ---</span>
+                <label>
+                    <input type="checkbox" class="round-check"> <span style="font-size:12px;">完了</span>
+                </label>
+            </div>`;
+        
+        matches.forEach((m, index) => {
+            // A, B, C... と変換
+            const courtLabel = String.fromCharCode(65 + index);
+            // 色を割り当て（定義した色リストを循環）
+            const color = courtColors[index % courtColors.length];
+            
+            entryHtml += `<div class="match-row" style="background-color: ${color};">
+                ${courtLabel}：${m.team1[0]}・${m.team1[1]} VS ${m.team2[0]}・${m.team2[1]}
+            </div>`;
+        });
+        
+        if (waiting.length > 0) {
+            entryHtml += `<div class="log-footer">（待機：${waiting.join('・')}）</div>`;
+        } else {
+            entryHtml += `<div class="log-footer">（待機：なし）</div>`;
+        }
+        
+        entryHtml += `</div>`; // log-entry close
+
+        prependHtml(entryHtml);
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+</script>
+
+</body>
+</html>
