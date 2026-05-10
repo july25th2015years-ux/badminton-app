@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>バド・マッチメーカー v5.8</title>
+<title>バド・マッチメーカー v5.8 (Save対応版)</title>
 <style>
     /* 全体のレイアウト調整：余白を極力減らす */
     body { font-family: sans-serif; padding: 10px; max-width: 600px; margin: 0 auto; background-color: #f0f4f8; }
@@ -203,6 +203,70 @@
     let currentCourtCount = 2; 
 
     const courtColors = ['#FFC0CB', '#FFFACD', '#E0FFFF', '#98FB98', '#E6E6FA', '#FFDAB9'];
+    const STORAGE_KEY = 'badoMatchApp_saveData'; // 保存用のキー
+
+    // ページ読み込み時にデータを復元
+    window.onload = loadState;
+
+    // --- データ保存機能 ---
+    function saveState() {
+        const state = {
+            isGameStarted: document.getElementById('setupArea').style.display === 'none',
+            players: players,
+            removedPlayers: removedPlayers,
+            historyPairs: historyPairs,
+            lastRoundPairs: lastRoundPairs,
+            restHistory: restHistory,
+            playerRestCounts: playerRestCounts,
+            matchCount: matchCount,
+            maxPlayerNumber: maxPlayerNumber,
+            currentCourtCount: currentCourtCount,
+            courtCountGameValue: document.getElementById('courtCountGame').value,
+            outputHtml: document.getElementById('output').innerHTML
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    // --- データ復元機能 ---
+    function loadState() {
+        const savedData = localStorage.getItem(STORAGE_KEY);
+        if (savedData) {
+            const state = JSON.parse(savedData);
+            if (state.isGameStarted) {
+                players = state.players;
+                removedPlayers = state.removedPlayers;
+                historyPairs = state.historyPairs;
+                lastRoundPairs = state.lastRoundPairs;
+                restHistory = state.restHistory;
+                playerRestCounts = state.playerRestCounts;
+                matchCount = state.matchCount;
+                maxPlayerNumber = state.maxPlayerNumber;
+                currentCourtCount = state.currentCourtCount;
+
+                document.getElementById('setupArea').style.display = 'none';
+                document.getElementById('gameArea').classList.remove('hidden');
+                document.getElementById('gameArea').style.display = 'block';
+
+                document.getElementById('courtCountGame').value = state.courtCountGameValue || currentCourtCount;
+                document.getElementById('output').innerHTML = state.outputHtml;
+
+                updateStatusDisplay();
+                updatePlayerListDisplay();
+            }
+        }
+    }
+
+    // チェックボックスの状態変更を検知してHTMLの属性に反映し、保存する
+    document.getElementById('output').addEventListener('change', function(e) {
+        if (e.target.classList.contains('round-check')) {
+            if (e.target.checked) {
+                e.target.setAttribute('checked', 'checked');
+            } else {
+                e.target.removeAttribute('checked');
+            }
+            saveState(); // チェック状態も保存
+        }
+    });
 
     function startGame() {
         const pCountInput = document.getElementById('playerCount').value;
@@ -237,6 +301,7 @@
         document.getElementById('output').innerHTML = `<div class="log-header">--- 開始: ${count}名 / コート${currentCourtCount}面 ---</div>`;
         updateStatusDisplay();
         updatePlayerListDisplay();
+        saveState(); // 保存
     }
 
     function updateCourtSetting() {
@@ -244,6 +309,7 @@
         if(!isNaN(val) && val > 0) {
             currentCourtCount = val;
             updateStatusDisplay();
+            saveState(); // 保存
         }
     }
 
@@ -272,6 +338,7 @@
         const now = new Date();
         const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
         prependLog(`[${timeStr}] 参加：${newPlayerNum}番`);
+        saveState(); // 保存
     }
 
     function removePlayer() {
@@ -290,6 +357,7 @@
         const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
         prependLog(`[${timeStr}] 休憩へ：${numToRemove}番`);
         numInput.value = '';
+        saveState(); // 保存
     }
 
     function restorePlayer(num) {
@@ -301,6 +369,7 @@
         playerRestCounts[num] = minRest;
         updatePlayerListDisplay();
         prependLog(`[通知] ${num}番が復帰しました`);
+        saveState(); // 保存
     }
 
     function deletePlayerPermanent(num) {
@@ -308,6 +377,7 @@
         removedPlayers = removedPlayers.filter(p => p !== num);
         updatePlayerListDisplay();
         prependLog(`[通知] ${num}番を完全削除`);
+        saveState(); // 保存
     }
 
     function updatePlayerListDisplay() {
@@ -330,7 +400,12 @@
         }
     }
 
-    function resetApp() { if(confirm("最初に戻りますか？")) location.reload(); }
+    function resetApp() { 
+        if(confirm("最初に戻りますか？(現在の履歴はすべて消去されます)")) {
+            localStorage.removeItem(STORAGE_KEY); // 保存データも消去する
+            location.reload(); 
+        }
+    }
 
     function generateMatch() {
         updateCourtSetting();
@@ -446,6 +521,8 @@
         
         entryHtml += `<div class="log-footer">（待機：${waiting.length > 0 ? waiting.join('・') : 'なし'}）</div></div>`;
         prependHtml(entryHtml);
+
+        saveState(); // 保存
     }
 
     function shuffle(array) {
