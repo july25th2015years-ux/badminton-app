@@ -194,11 +194,12 @@
                 <span style="font-size:11px; color:#666;">(次回反映)</span>
             </div>
 
-            <!-- 追加：音声読み上げ設定 -->
+            <!-- 変更：音声読み上げボタン -->
             <div class="manage-row">
-                <label class="manage-label" style="display:flex; align-items:center; gap:5px; cursor:pointer;">
-                    <input type="checkbox" id="enableSpeech" onchange="saveState()"> 🗣️ 音声でペアを読み上げる
-                </label>
+                <span class="manage-label" style="display:flex; align-items:center; gap:5px;">
+                    🗣️ 音声でペアを読み上げる
+                    <button onclick="speakLatestMatch()" class="restore-btn" style="padding: 4px 10px; font-size: 12px;">読み上げ</button>
+                </span>
             </div>
 
             <div class="manage-row">
@@ -256,8 +257,7 @@
             maxPlayerNumber: maxPlayerNumber,
             currentCourtCount: currentCourtCount,
             courtCountGameValue: document.getElementById('courtCountGame').value,
-            outputHtml: document.getElementById('output').innerHTML,
-            enableSpeech: document.getElementById('enableSpeech').checked // 音声設定も保存
+            outputHtml: document.getElementById('output').innerHTML
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
@@ -285,11 +285,6 @@
                 document.getElementById('courtCountGame').value = state.courtCountGameValue || currentCourtCount;
                 document.getElementById('output').innerHTML = state.outputHtml;
                 
-                // 音声設定の復元
-                if (state.enableSpeech !== undefined) {
-                    document.getElementById('enableSpeech').checked = state.enableSpeech;
-                }
-
                 updateStatusDisplay();
                 updatePlayerListDisplay();
             }
@@ -457,29 +452,36 @@
         }
     }
 
-    // --- 追加：試合の音読用関数 ---
-    function speakMatches(matches, waitingList) {
-        // チェックボックスが入っていなければ終了、ブラウザが対応していなければ終了
-        if (!document.getElementById('enableSpeech').checked) return;
+    // --- 変更：最新の試合を読み上げる関数（ボタンから呼び出し） ---
+    function speakLatestMatch() {
         if (!('speechSynthesis' in window)) return;
+        if (matchCount === 0 || lastRoundPairs.length === 0) return; // まだ試合がない場合
 
         // 読み上げ中の音声があればキャンセル
         speechSynthesis.cancel();
 
-        let textToSpeak = `第${matchCount}回を始めます。`;
+        let textToSpeak = "";
         
-        matches.forEach((m, index) => {
-            const courtLabel = String.fromCharCode(65 + index); // A, B, C...
-            textToSpeak += `${courtLabel}コート。${m.team1[0]}番、${m.team1[1]}番。対。${m.team2[0]}番、${m.team2[1]}番。`;
-        });
+        // lastRoundPairsから最新の試合情報を再構築して読み上げ
+        let matchIndex = 0;
+        for (let i = 0; i < lastRoundPairs.length; i += 2) {
+            if (i + 1 < lastRoundPairs.length) {
+                const team1 = lastRoundPairs[i].split('-');
+                const team2 = lastRoundPairs[i+1].split('-');
+                const courtLabel = String.fromCharCode(65 + matchIndex); // A, B, C...
+                textToSpeak += `${courtLabel}コート。${team1[0]}番、${team1[1]}番。対。${team2[0]}番、${team2[1]}番。`;
+                matchIndex++;
+            }
+        }
 
+        const waitingList = restHistory.length > 0 ? restHistory[restHistory.length - 1] : [];
         if (waitingList.length > 0) {
             textToSpeak += `待機は、${waitingList.join('番、')}番です。`;
         }
 
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
         utterance.lang = 'ja-JP';
-        utterance.rate = 0.9; // 少しゆっくり読む
+        utterance.rate = 1.2; // 少しゆっくり読む
         speechSynthesis.speak(utterance);
     }
 
@@ -608,9 +610,6 @@
         
         entryHtml += `<div class="log-footer">（待機：${waiting.length > 0 ? waiting.join('・') : 'なし'}）</div></div>`;
         prependHtml(entryHtml);
-
-        // --- 追加：音声読み上げ処理の呼び出し ---
-        speakMatches(matches, waiting);
 
         saveState(); // 保存
     }
