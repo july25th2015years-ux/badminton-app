@@ -132,9 +132,36 @@
         font-size: 18px;
     }
     .log-footer { font-size: 14px; color: #ddd; margin-top: 5px; }
+
+    /* --- 追加：ポップアップ通知のスタイル --- */
+    #toast {
+        visibility: hidden;
+        min-width: 250px;
+        background-color: #dc3545; /* エラーっぽい赤色 */
+        color: #fff;
+        text-align: center;
+        border-radius: 5px;
+        padding: 12px;
+        position: fixed;
+        z-index: 1000;
+        left: 50%;
+        top: 20px; /* 画面上部に表示 */
+        transform: translateX(-50%);
+        font-weight: bold;
+        opacity: 0;
+        transition: opacity 0.3s, visibility 0.3s;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    #toast.show {
+        visibility: visible;
+        opacity: 1;
+    }
 </style>
 </head>
 <body>
+
+<!-- 追加：ポップアップ通知用の要素 -->
+<div id="toast">⚠️ チェックを入れてください</div>
 
 <div style="display:flex; justify-content:space-between; align-items:center;">
     <h1>🏸 マッチメーカー</h1>
@@ -165,6 +192,13 @@
                 <span class="manage-label">コート</span>
                 <input type="number" id="courtCountGame" value="2" min="1" onchange="updateCourtSetting()"> 面
                 <span style="font-size:11px; color:#666;">(次回反映)</span>
+            </div>
+
+            <!-- 追加：音声読み上げ設定 -->
+            <div class="manage-row">
+                <label class="manage-label" style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                    <input type="checkbox" id="enableSpeech" onchange="saveState()"> 🗣️ 音声でペアを読み上げる
+                </label>
             </div>
 
             <div class="manage-row">
@@ -222,7 +256,8 @@
             maxPlayerNumber: maxPlayerNumber,
             currentCourtCount: currentCourtCount,
             courtCountGameValue: document.getElementById('courtCountGame').value,
-            outputHtml: document.getElementById('output').innerHTML
+            outputHtml: document.getElementById('output').innerHTML,
+            enableSpeech: document.getElementById('enableSpeech').checked // 音声設定も保存
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
@@ -249,6 +284,11 @@
 
                 document.getElementById('courtCountGame').value = state.courtCountGameValue || currentCourtCount;
                 document.getElementById('output').innerHTML = state.outputHtml;
+                
+                // 音声設定の復元
+                if (state.enableSpeech !== undefined) {
+                    document.getElementById('enableSpeech').checked = state.enableSpeech;
+                }
 
                 updateStatusDisplay();
                 updatePlayerListDisplay();
@@ -267,6 +307,16 @@
             saveState(); // チェック状態も保存
         }
     });
+
+    // --- 追加：ポップアップ表示関数 ---
+    function showToast() {
+        const toast = document.getElementById("toast");
+        toast.className = "show";
+        // 1秒(1000ミリ秒)後にクラスを削除して隠す
+        setTimeout(function(){ 
+            toast.className = toast.className.replace("show", ""); 
+        }, 1000);
+    }
 
     function startGame() {
         const pCountInput = document.getElementById('playerCount').value;
@@ -407,7 +457,44 @@
         }
     }
 
+    // --- 追加：試合の音読用関数 ---
+    function speakMatches(matches, waitingList) {
+        // チェックボックスが入っていなければ終了、ブラウザが対応していなければ終了
+        if (!document.getElementById('enableSpeech').checked) return;
+        if (!('speechSynthesis' in window)) return;
+
+        // 読み上げ中の音声があればキャンセル
+        speechSynthesis.cancel();
+
+        let textToSpeak = `第${matchCount}回を始めます。`;
+        
+        matches.forEach((m, index) => {
+            const courtLabel = String.fromCharCode(65 + index); // A, B, C...
+            textToSpeak += `${courtLabel}コート。${m.team1[0]}番、${m.team1[1]}番。対。${m.team2[0]}番、${m.team2[1]}番。`;
+        });
+
+        if (waitingList.length > 0) {
+            textToSpeak += `待機は、${waitingList.join('番、')}番です。`;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = 'ja-JP';
+        utterance.rate = 0.9; // 少しゆっくり読む
+        speechSynthesis.speak(utterance);
+    }
+
     function generateMatch() {
+        // --- 追加：直前のチェックボックスがチェックされているか確認 ---
+        const checks = document.querySelectorAll('.round-check');
+        if (checks.length > 0) {
+            const latestCheck = checks[0]; // 上に追加されるので[0]が最新
+            if (!latestCheck.checked) {
+                showToast(); // 1秒ポップアップ表示
+                return;      // 処理を中断して生成させない
+            }
+        }
+        // --------------------------------------------------------
+
         updateCourtSetting();
         matchCount++;
         updateStatusDisplay();
@@ -521,6 +608,9 @@
         
         entryHtml += `<div class="log-footer">（待機：${waiting.length > 0 ? waiting.join('・') : 'なし'}）</div></div>`;
         prependHtml(entryHtml);
+
+        // --- 追加：音声読み上げ処理の呼び出し ---
+        speakMatches(matches, waiting);
 
         saveState(); // 保存
     }
