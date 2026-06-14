@@ -101,6 +101,11 @@
     .restore-btn { background-color: #17a2b8; color: white; padding: 8px 12px; font-size: 14px; }
     .delete-btn { background-color: #dc3545; color: white; padding: 8px 12px; font-size: 14px; margin-left: 4px; }
 
+    /* 追加：速度変更ボタンのスタイル */
+    .speed-btn { border: none; border-radius: 4px; cursor: pointer; color: white; transition: background-color 0.2s; }
+    .speed-btn.active { background-color: #28a745; } /* 選択中は緑色 */
+    .speed-btn.inactive { background-color: #6c757d; } /* 未選択はグレー */
+
     .status-bar {
         display: flex;
         justify-content: space-between;
@@ -194,11 +199,15 @@
                 <span style="font-size:11px; color:#666;">(次回反映)</span>
             </div>
 
-            <!-- 変更：音声読み上げボタン -->
+            <!-- 変更：音声読み上げボタンと速度変更ボタン -->
             <div class="manage-row">
-                <span class="manage-label" style="display:flex; align-items:center; gap:5px;">
-                    🗣️ 音声でペアを読み上げる
+                <span class="manage-label" style="display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
+                    🗣️ 音声でペアを読み上げ
                     <button onclick="speakLatestMatch()" class="restore-btn" style="padding: 4px 10px; font-size: 12px;">読み上げ</button>
+                    <span style="margin-left: 5px; display:flex; gap:3px;">
+                        <button id="speedNormalBtn" onclick="setSpeechSpeed(1.0)" class="speed-btn active" style="padding: 4px 8px; font-size: 11px;">標準</button>
+                        <button id="speedSlowBtn" onclick="setSpeechSpeed(0.8)" class="speed-btn inactive" style="padding: 4px 8px; font-size: 11px;">遅い</button>
+                    </span>
                 </span>
             </div>
 
@@ -236,6 +245,7 @@
     let matchCount = 0;
     let maxPlayerNumber = 0; 
     let currentCourtCount = 2; 
+    let currentSpeechSpeed = 1.0; // 追加：現在の読み上げ速度
 
     const courtColors = ['#FFC0CB', '#FFFACD', '#E0FFFF', '#98FB98', '#E6E6FA', '#FFDAB9'];
     const STORAGE_KEY = 'badoMatchApp_saveData'; // 保存用のキー
@@ -256,6 +266,7 @@
             matchCount: matchCount,
             maxPlayerNumber: maxPlayerNumber,
             currentCourtCount: currentCourtCount,
+            currentSpeechSpeed: currentSpeechSpeed,
             courtCountGameValue: document.getElementById('courtCountGame').value,
             outputHtml: document.getElementById('output').innerHTML
         };
@@ -278,6 +289,10 @@
                 maxPlayerNumber = state.maxPlayerNumber;
                 currentCourtCount = state.currentCourtCount;
 
+                if (state.currentSpeechSpeed !== undefined) {
+                    setSpeechSpeed(state.currentSpeechSpeed);
+                }
+
                 document.getElementById('setupArea').style.display = 'none';
                 document.getElementById('gameArea').classList.remove('hidden');
                 document.getElementById('gameArea').style.display = 'block';
@@ -289,6 +304,22 @@
                 updatePlayerListDisplay();
             }
         }
+    }
+
+    // --- 追加：読み上げ速度を変更する関数 ---
+    function setSpeechSpeed(speed) {
+        currentSpeechSpeed = speed;
+        const normalBtn = document.getElementById('speedNormalBtn');
+        const slowBtn = document.getElementById('speedSlowBtn');
+        
+        if (speed === 1.0) {
+            normalBtn.className = 'speed-btn active';
+            slowBtn.className = 'speed-btn inactive';
+        } else {
+            normalBtn.className = 'speed-btn inactive';
+            slowBtn.className = 'speed-btn active';
+        }
+        saveState(); // 速度設定も保存
     }
 
     // チェックボックスの状態変更を検知してHTMLの属性に反映し、保存する
@@ -481,7 +512,7 @@
 
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
         utterance.lang = 'ja-JP';
-        utterance.rate = 1.2; // 少しゆっくり読む
+        utterance.rate = currentSpeechSpeed; // 選択された速度を適用
         speechSynthesis.speak(utterance);
     }
 
