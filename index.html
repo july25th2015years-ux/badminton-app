@@ -488,6 +488,19 @@
         if (!('speechSynthesis' in window)) return;
         if (matchCount === 0 || lastRoundPairs.length === 0) return; // まだ試合がない場合
 
+        // 【追加】iOS対策：無音を再生してBluetoothのメディア音声ルートを強制的に開く
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            osc.frequency.value = 0; // 周波数0（無音）
+            osc.connect(ctx.destination);
+            osc.start(0);
+            osc.stop(ctx.currentTime + 0.1); // 0.1秒だけで停止
+        } catch (e) {
+            console.log("AudioContext not supported");
+        }
+
         // 読み上げ中の音声があればキャンセル
         speechSynthesis.cancel();
 
@@ -513,7 +526,11 @@
         const utterance = new SpeechSynthesisUtterance(textToSpeak);
         utterance.lang = 'ja-JP';
         utterance.rate = currentSpeechSpeed; // 選択された速度を適用
-        speechSynthesis.speak(utterance);
+        
+        // 【追加】iOS対策：少しだけ遅延させてから読み上げを開始する（無音再生ルートの確保を待つため）
+        setTimeout(() => {
+            speechSynthesis.speak(utterance);
+        }, 100);
     }
 
     function generateMatch() {
